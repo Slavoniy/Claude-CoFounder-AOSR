@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// === Перечисления ===
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  WORKER
+  CONTROLLER
+  CUSTOMER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ContractType {
+  MAIN
+  SUBCONTRACT
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+enum ParticipantRole {
+  DEVELOPER
+  CONTRACTOR
+  SUPERVISION
+  SUBCONTRACTOR
+}
+
+// === Модели Фазы 1 ===
+
+/// Организация (компания-участник строительства)
+model Organization {
+  id        String   @id @default(uuid())
+  name      String   // Название организации
+  inn       String   @unique // ИНН
+  ogrn      String?  @unique // ОГРН
+  sroName   String?  // Название СРО
+  sroNumber String?  // Номер СРО
+  sroInn    String?  // ИНН СРО
+  address   String?  // Юридический адрес
+  phone     String?  // Телефон
+  email     String?  // Email организации
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                 User[]
+  projects              Project[]
+  invitations           Invitation[]
+  contractParticipations ContractParticipant[]
+
+  @@map("organizations")
+}
+
+/// Пользователь системы
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   // Хэш пароля (bcrypt)
+  firstName    String   // Имя
+  lastName     String   // Фамилия
+  middleName   String?  // Отчество
+  phone        String?  // Телефон
+  position     String?  // Должность
+  role         UserRole @default(WORKER)
+  isActive     Boolean  @default(true)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invitationsSent Invitation[]
+
+  @@map("users")
+}
+
+/// Приглашение сотрудника в организацию
+model Invitation {
+  id    String           @id @default(uuid())
+  email String           // Email приглашённого
+  token String           @unique // Токен для ссылки приглашения
+  role  UserRole         @default(WORKER)
+  status InvitationStatus @default(PENDING)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  invitedById String
+  invitedBy   User @relation(fields: [invitedById], references: [id])
+
+  expiresAt DateTime // Срок действия приглашения
+  createdAt DateTime @default(now())
+
+  @@map("invitations")
+}
+
+/// Проект (объект капитального строительства)
+model Project {
+  id                String        @id @default(uuid())
+  name              String        // Название проекта
+  address           String?       // Адрес объекта
+  description       String?       // Описание
+  generalContractor String?       // Генподрядчик
+  customer          String?       // Заказчик
+  status            ProjectStatus @default(ACTIVE)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts Contract[]
+
+  @@map("projects")
+}
+
+/// Договор (или субдоговор)
+model Contract {
+  id        String         @id @default(uuid())
+  number    String         // Номер договора
+  name      String         // Наименование
+  type      ContractType   @default(MAIN)
+  status    ContractStatus @default(DRAFT)
+  startDate DateTime?      // Дата начала
+  endDate   DateTime?      // Дата окончания
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Самоссылка для субдоговоров
+  parentId     String?
+  parent       Contract?  @relation("ContractHierarchy", fields: [parentId], references: [id])
+  subContracts Contract[] @relation("ContractHierarchy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ContractParticipant[]
+
+  @@map("contracts")
+}
+
+/// Участник договора (связь организация-договор-роль)
+model ContractParticipant {
+  id              String          @id @default(uuid())
+  role            ParticipantRole // Роль участника
+  appointmentOrder String?        // Номер приказа о назначении
+  appointmentDate  DateTime?      // Дата приказа
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([contractId, organizationId, role])
+  @@map("contract_participants")
+}
