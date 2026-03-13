@@ -6,9 +6,10 @@ export default withAuth({
   },
 });
 
-// Защищаем все маршруты дашборда
+// Защищаем все маршруты дашборда (включая корень /)
 export const config = {
   matcher: [
+    '/',
     '/projects/:path*',
     '/organizations/:path*',
     '/documents/:path*',
