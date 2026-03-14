@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { db } from '@/lib/db';
 import { getSessionOrThrow } from '@/lib/auth-utils';
 import { successResponse, errorResponse } from '@/utils/api';
