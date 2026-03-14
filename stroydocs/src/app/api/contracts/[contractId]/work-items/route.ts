@@ -4,22 +4,30 @@ import { getSessionOrThrow } from '@/lib/auth-utils';
 import { createWorkItemSchema } from '@/lib/validations/work-item';
 import { successResponse, errorResponse } from '@/utils/api';
 
+/** Проверка доступа к договору через организацию */
+async function verifyContractAccess(contractId: string, organizationId: string) {
+  const contract = await db.contract.findFirst({
+    where: {
+      id: contractId,
+      project: { organizationId },
+    },
+  });
+  return contract;
+}
+
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: { projectId: string; contractId: string } }
+  req: NextRequest,
+  { params }: { params: { contractId: string } }
 ) {
   try {
     const session = await getSessionOrThrow();
-
-    const project = await db.project.findFirst({
-      where: { id: params.projectId, organizationId: session.user.organizationId },
-    });
-    if (!project) return errorResponse('Проект не найден', 404);
+    const contract = await verifyContractAccess(params.contractId, session.user.organizationId);
+    if (!contract) return errorResponse('Договор не найден', 404);
 
     const workItems = await db.workItem.findMany({
       where: { contractId: params.contractId },
       include: {
-        ksiNode: { select: { id: true, code: true, name: true } },
+        ksiNode: { select: { code: true, name: true } },
         _count: { select: { workRecords: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -35,15 +43,12 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string; contractId: string } }
+  { params }: { params: { contractId: string } }
 ) {
   try {
     const session = await getSessionOrThrow();
-
-    const project = await db.project.findFirst({
-      where: { id: params.projectId, organizationId: session.user.organizationId },
-    });
-    if (!project) return errorResponse('Проект не найден', 404);
+    const contract = await verifyContractAccess(params.contractId, session.user.organizationId);
+    if (!contract) return errorResponse('Договор не найден', 404);
 
     const body = await req.json();
     const parsed = createWorkItemSchema.safeParse(body);
@@ -51,13 +56,17 @@ export async function POST(
       return errorResponse('Ошибка валидации', 400, parsed.error.issues);
     }
 
+    // Проверка существования КСИ-узла
+    const ksiNode = await db.ksiNode.findUnique({ where: { id: parsed.data.ksiNodeId } });
+    if (!ksiNode) return errorResponse('Узел КСИ не найден', 404);
+
     const workItem = await db.workItem.create({
       data: {
         ...parsed.data,
         contractId: params.contractId,
       },
       include: {
-        ksiNode: { select: { id: true, code: true, name: true } },
+        ksiNode: { select: { code: true, name: true } },
       },
     });
 

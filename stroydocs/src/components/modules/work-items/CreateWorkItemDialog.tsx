@@ -1,116 +1,106 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { KsiTreeSelect } from '@/components/shared/KsiTreeSelect';
-import { useToast } from '@/hooks/useToast';
+import { KsiTreePicker } from '@/components/modules/ksi/KsiTreePicker';
 import { createWorkItemSchema, type CreateWorkItemInput } from '@/lib/validations/work-item';
+import { useWorkItems } from './useWorkItems';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: string;
   contractId: string;
 }
 
-export function CreateWorkItemDialog({ open, onOpenChange, projectId, contractId }: Props) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+export function CreateWorkItemDialog({ open, onOpenChange, contractId }: Props) {
+  const { createMutation } = useWorkItems(contractId);
+  const [selectedKsi, setSelectedKsi] = useState<{ code: string; name: string } | null>(null);
 
-  const form = useForm<CreateWorkItemInput>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<CreateWorkItemInput>({
     resolver: zodResolver(createWorkItemSchema),
-    defaultValues: { cipher: '', name: '', unit: '', quantity: 0, ksiNodeId: null },
   });
 
-  const mutation = useMutation({
-    mutationFn: async (data: CreateWorkItemInput) => {
-      const res = await fetch(`/api/projects/${projectId}/contracts/${contractId}/work-items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      return json.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['work-items', contractId] });
-      toast({ title: 'Вид работ создан' });
-      form.reset();
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Ошибка', description: error.message, variant: 'destructive' });
-    },
-  });
+  const onSubmit = (data: CreateWorkItemInput) => {
+    createMutation.mutate(data, {
+      onSuccess: () => {
+        reset();
+        setSelectedKsi(null);
+        onOpenChange(false);
+      },
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Новый вид работ</DialogTitle>
+          <DialogTitle>Добавить вид работ</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Шифр проекта</Label>
-              <Input placeholder="КЖ-01" {...form.register('cipher')} />
-              {form.formState.errors.cipher && (
-                <p className="text-xs text-destructive">{form.formState.errors.cipher.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Единица измерения</Label>
-              <Input placeholder="м³" {...form.register('unit')} />
-              {form.formState.errors.unit && (
-                <p className="text-xs text-destructive">{form.formState.errors.unit.message}</p>
-              )}
-            </div>
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Наименование работы</Label>
-            <Input placeholder="Устройство монолитного фундамента" {...form.register('name')} />
-            {form.formState.errors.name && (
-              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+            <Label>Шифр проекта *</Label>
+            <Input {...register('projectCipher')} placeholder="Например: 01-КР" />
+            {errors.projectCipher && (
+              <p className="text-sm text-destructive">{errors.projectCipher.message}</p>
             )}
           </div>
+
           <div className="space-y-2">
-            <Label>Объём</Label>
-            <Input
-              type="number"
-              step="0.01"
-              {...form.register('quantity', { valueAsNumber: true })}
-            />
-            {form.formState.errors.quantity && (
-              <p className="text-xs text-destructive">{form.formState.errors.quantity.message}</p>
+            <Label>Наименование работы *</Label>
+            <Input {...register('name')} placeholder="Наименование вида работ" />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name.message}</p>
             )}
           </div>
+
           <div className="space-y-2">
-            <Label>Раздел КСИ (необязательно)</Label>
-            <KsiTreeSelect
-              value={form.watch('ksiNodeId') ?? null}
-              onChange={(id) => form.setValue('ksiNodeId', id)}
-            />
+            <Label>Описание</Label>
+            <Input {...register('description')} placeholder="Краткое описание" />
           </div>
-          <DialogFooter>
+
+          <div className="space-y-2">
+            <Label>Вид работ по КСИ *</Label>
+            {selectedKsi && (
+              <p className="text-sm text-muted-foreground">
+                Выбрано: <span className="font-mono">{selectedKsi.code}</span> — {selectedKsi.name}
+              </p>
+            )}
+            <KsiTreePicker
+              value={undefined}
+              onSelect={(nodeId, node) => {
+                setValue('ksiNodeId', nodeId, { shouldValidate: true });
+                setSelectedKsi({ code: node.code, name: node.name });
+              }}
+            />
+            {errors.ksiNodeId && (
+              <p className="text-sm text-destructive">{errors.ksiNodeId.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Создание...' : 'Создать'}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Создание...' : 'Создать'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

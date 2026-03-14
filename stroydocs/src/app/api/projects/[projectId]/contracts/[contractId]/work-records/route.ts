@@ -17,12 +17,10 @@ export async function GET(
     if (!project) return errorResponse('Проект не найден', 404);
 
     const workRecords = await db.workRecord.findMany({
-      where: {
-        workItem: { contractId: params.contractId },
-      },
+      where: { contractId: params.contractId },
       include: {
-        workItem: { select: { id: true, cipher: true, name: true } },
-        author: { select: { id: true, firstName: true, lastName: true } },
+        workItem: { select: { id: true, projectCipher: true, name: true } },
+
         _count: { select: { writeoffs: true } },
       },
       orderBy: { date: 'desc' },
@@ -77,11 +75,11 @@ export async function POST(
         data: {
           ...rest,
           date: new Date(date),
-          authorId: session.user.id,
+          contractId: params.contractId,
         },
         include: {
-          workItem: { select: { id: true, cipher: true, name: true } },
-          author: { select: { id: true, firstName: true, lastName: true } },
+          workItem: { select: { id: true, projectCipher: true, name: true } },
+  
         },
       });
 

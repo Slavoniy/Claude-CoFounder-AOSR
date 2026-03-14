@@ -48,27 +48,6 @@ enum ParticipantRole {
   SUBCONTRACTOR
 }
 
-enum WorkRecordStatus {
-  DRAFT
-  IN_PROGRESS
-  COMPLETED
-  REJECTED
-}
-
-enum MaterialDocType {
-  PASSPORT
-  CERTIFICATE
-  PROTOCOL
-  OTHER
-}
-
-enum PhotoEntityType {
-  WORK_RECORD
-  MATERIAL
-  REMARK
-  WORK_ITEM
-}
-
 // === Модели Фазы 1 ===
 
 /// Организация (компания-участник строительства)
@@ -115,7 +94,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   invitationsSent Invitation[]
-  workRecords     WorkRecord[]
   photos          Photo[]
 
   @@map("users")
@@ -186,6 +164,7 @@ model Contract {
   participants ContractParticipant[]
   workItems    WorkItem[]
   materials    Material[]
+  workRecords  WorkRecord[]
 
   @@map("contracts")
 }
@@ -209,18 +188,47 @@ model ContractParticipant {
   @@map("contract_participants")
 }
 
-// === Модели Фазы 2 ===
+// === Модели Фазы 2 — Производство работ ===
+
+/// Перечисление типов сопроводительных документов материалов
+enum MaterialDocumentType {
+  PASSPORT // Паспорт качества
+  CERTIFICATE // Сертификат соответствия
+  PROTOCOL // Протокол испытаний
+}
+
+/// Перечисление единиц измерения
+enum MeasurementUnit {
+  PIECE // шт
+  KG // кг
+  TON // т
+  M // м
+  M2 // м²
+  M3 // м³
+  L // л
+  SET // компл
+}
+
+/// Статус записи о работе
+enum WorkRecordStatus {
+  DRAFT // Черновик
+  IN_PROGRESS // В работе
+  COMPLETED // Выполнено
+  ACCEPTED // Принято
+  REJECTED // Отклонено
+}
 
 /// Узел классификатора строительной информации (КСИ)
 model KsiNode {
-  id       String  @id @default(uuid())
-  parentId String? // Ссылка на родительский узел
-  code     String  @unique // Код КСИ (например "01.01.01")
+  id       String    @id @default(uuid())
+  code     String    @unique // Код узла КСИ (например "01.01.001")
   name     String // Наименование
-  level    Int // Уровень вложенности (0 = корень)
-
+  parentId String? // Ссылка на родительский узел
   parent   KsiNode?  @relation("KsiTree", fields: [parentId], references: [id])
   children KsiNode[] @relation("KsiTree")
+  level    Int       @default(0) // Уровень вложенности (0 = корень)
+
+  createdAt DateTime @default(now())
 
   workItems WorkItem[]
 
@@ -229,43 +237,38 @@ model KsiNode {
 
 /// Вид работ (привязка к КСИ и договору)
 model WorkItem {
-  id       String @id @default(uuid())
-  cipher   String // Шифр проекта
-  name     String // Наименование работы
-  unit     String // Единица измерения (м³, м², шт)
-  quantity Float // Объём работ
+  id            String  @id @default(uuid())
+  projectCipher String // Шифр проекта
+  name          String // Наименование работы
+  description   String? // Описание
+
+  ksiNodeId String
+  ksiNode   KsiNode @relation(fields: [ksiNodeId], references: [id])
 
   contractId String
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
-  ksiNodeId String?
-  ksiNode   KsiNode? @relation(fields: [ksiNodeId], references: [id])
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  materials   Material[]
   workRecords WorkRecord[]
 
   @@map("work_items")
 }
 
-/// Материал (поставка по накладной)
+/// Материал (привязка к договору, учёт остатков)
 model Material {
-  id               String    @id @default(uuid())
+  id               String          @id @default(uuid())
   name             String // Наименование материала
-  supplier         String // Поставщик
-  invoiceNumber    String // Номер накладной
+  supplier         String? // Поставщик
+  invoiceNumber    String? // Номер накладной
   invoiceDate      DateTime? // Дата накладной
-  unit             String // Единица измерения
-  quantityReceived Float // Получено
-  quantityUsed     Float     @default(0) // Использовано (обновляется при списании)
+  unit             MeasurementUnit @default(PIECE) // Единица измерения
+  quantityReceived Float // Получено (по накладной)
+  quantityUsed     Float           @default(0) // Использовано (списано)
 
   contractId String
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  workItemId String?
-  workItem   WorkItem? @relation(fields: [workItemId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -276,20 +279,19 @@ model Material {
   @@map("materials")
 }
 
-/// Сопроводительный документ материала (паспорт, сертификат)
+/// Сопроводительный документ материала (паспорт, сертификат — хранится в S3)
 model MaterialDocument {
-  id       String          @id @default(uuid())
-  type     MaterialDocType // Тип документа
-  name     String // Название документа
-  s3Key    String // Ключ файла в S3
-  fileName String // Имя файла
-  mimeType String // MIME-тип
-  size     Int // Размер в байтах
+  id       String               @id @default(uuid())
+  type     MaterialDocumentType // Тип документа
+  fileName String // Оригинальное имя файла
+  s3Key    String // Ключ в S3-хранилище
+  mimeType String // MIME-тип (application/pdf и т.д.)
+  size     Int // Размер файла в байтах
 
   materialId String
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  uploadedAt DateTime @default(now())
 
   @@map("material_documents")
 }
@@ -299,15 +301,15 @@ model WorkRecord {
   id          String           @id @default(uuid())
   date        DateTime // Дата выполнения
   location    String // Место проведения работ
-  description String // Описание выполненных работ
-  standard    String? // Нормативный документ (ГОСТ, СП, СНиП)
+  description String? // Описание выполненных работ
+  normative   String? // Норматив (ГОСТ, СП, СНиП)
   status      WorkRecordStatus @default(DRAFT)
 
   workItemId String
   workItem   WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
 
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -317,7 +319,7 @@ model WorkRecord {
   @@map("work_records")
 }
 
-/// Списание материала при выполнении работы
+/// Списание материала (привязка к записи о работе)
 model MaterialWriteoff {
   id       String @id @default(uuid())
   quantity Float // Количество списанного материала
@@ -326,31 +328,42 @@ model MaterialWriteoff {
   workRecord   WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
 
   materialId String
-  material   Material @relation(fields: [materialId], references: [id])
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
-  @@unique([workRecordId, materialId])
+  @@unique([workRecordId, materialId]) // Один материал — одно списание на запись
   @@map("material_writeoffs")
+}
+
+// === Модели Фазы 2 — Фото-отчёты ===
+
+/// Тип сущности для полиморфной привязки фото
+enum PhotoEntityType {
+  WORK_RECORD
+  MATERIAL
+  REMARK
+  WORK_ITEM
 }
 
 /// Фото-отчёт (полиморфная привязка к любой сущности)
 model Photo {
   id         String          @id @default(uuid())
-  s3Key      String // Ключ файла в S3
-  fileName   String // Имя файла
+  s3Key      String // Ключ в S3-хранилище
+  fileName   String // Оригинальное имя файла
   mimeType   String // MIME-тип
-  size       Int // Размер в байтах
+  size       Int // Размер файла в байтах
   entityType PhotoEntityType // Тип связанной сущности
   entityId   String // ID связанной сущности
   gpsLat     Float? // GPS широта
   gpsLng     Float? // GPS долгота
-  takenAt    DateTime? // Дата/время съёмки
+  takenAt    DateTime? // Дата съёмки
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id])
 
   createdAt DateTime @default(now())
 
+  @@index([entityType, entityId])
   @@map("photos")
 }

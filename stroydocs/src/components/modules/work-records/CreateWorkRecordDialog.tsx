@@ -2,14 +2,12 @@
 
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,174 +19,178 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/useToast';
 import { createWorkRecordSchema, type CreateWorkRecordInput } from '@/lib/validations/work-record';
-import type { MaterialWithMeta } from '@/components/modules/materials/useMaterials';
+import { MEASUREMENT_UNIT_LABELS } from '@/utils/constants';
+import { useWorkRecords } from './useWorkRecords';
+import { useWorkItems } from '@/components/modules/work-items/useWorkItems';
+import { useMaterials } from '@/components/modules/materials/useMaterials';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: string;
   contractId: string;
-  workItems: { id: string; cipher: string; name: string }[];
-  materials: MaterialWithMeta[];
 }
 
-export function CreateWorkRecordDialog({
-  open, onOpenChange, projectId, contractId, workItems, materials,
-}: Props) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+export function CreateWorkRecordDialog({ open, onOpenChange, contractId }: Props) {
+  const { createMutation } = useWorkRecords(contractId);
+  const { workItems } = useWorkItems(contractId);
+  const { materials } = useMaterials(contractId);
 
-  const form = useForm<CreateWorkRecordInput>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    control,
+    reset,
+    formState: { errors },
+  } = useForm<CreateWorkRecordInput>({
     resolver: zodResolver(createWorkRecordSchema),
-    defaultValues: {
-      workItemId: '', date: '', location: '', description: '',
-      standard: '', writeoffs: [],
-    },
+    defaultValues: { writeoffs: [] },
   });
 
   const { fields, append, remove } = useFieldArray({
-    control: form.control,
+    control,
     name: 'writeoffs',
   });
 
-  const mutation = useMutation({
-    mutationFn: async (data: CreateWorkRecordInput) => {
-      const res = await fetch(
-        `/api/projects/${projectId}/contracts/${contractId}/work-records`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      );
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      return json.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['work-records', contractId] });
-      queryClient.invalidateQueries({ queryKey: ['materials', contractId] });
-      toast({ title: 'Запись создана' });
-      form.reset();
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Ошибка', description: error.message, variant: 'destructive' });
-    },
-  });
+  const onSubmit = (data: CreateWorkRecordInput) => {
+    createMutation.mutate(data, {
+      onSuccess: () => {
+        reset();
+        onOpenChange(false);
+      },
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Новая запись о работе</DialogTitle>
+          <DialogTitle>Создать запись о работе</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Дата выполнения *</Label>
+              <Input type="date" {...register('date')} />
+              {errors.date && (
+                <p className="text-sm text-destructive">{errors.date.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Место проведения *</Label>
+              <Input {...register('location')} placeholder="Секция 1, этаж 3" />
+              {errors.location && (
+                <p className="text-sm text-destructive">{errors.location.message}</p>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label>Вид работ</Label>
-            <Select
-              value={form.watch('workItemId')}
-              onValueChange={(val) => form.setValue('workItemId', val)}
-            >
+            <Label>Вид работ *</Label>
+            <Select onValueChange={(v) => setValue('workItemId', v, { shouldValidate: true })}>
               <SelectTrigger>
                 <SelectValue placeholder="Выберите вид работ" />
               </SelectTrigger>
               <SelectContent>
                 {workItems.map((wi) => (
                   <SelectItem key={wi.id} value={wi.id}>
-                    {wi.cipher} — {wi.name}
+                    <span className="font-mono text-xs">{wi.projectCipher}</span> — {wi.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {form.formState.errors.workItemId && (
-              <p className="text-xs text-destructive">{form.formState.errors.workItemId.message}</p>
+            {errors.workItemId && (
+              <p className="text-sm text-destructive">{errors.workItemId.message}</p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Дата выполнения</Label>
-              <Input type="date" {...form.register('date')} />
-            </div>
-            <div className="space-y-2">
-              <Label>Нормативный документ</Label>
-              <Input placeholder="СП 70.13330.2012" {...form.register('standard')} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Место проведения работ</Label>
-            <Input placeholder="Блок А, оси 1-3, отм. -3.200" {...form.register('location')} />
-          </div>
+
           <div className="space-y-2">
             <Label>Описание</Label>
-            <Input
-              placeholder="Бетонирование фундаментной плиты"
-              {...form.register('description')}
-            />
+            <Input {...register('description')} placeholder="Описание выполненных работ" />
           </div>
 
-          {/* Секция списания материалов */}
           <div className="space-y-2">
+            <Label>Норматив (ГОСТ, СП, СНиП)</Label>
+            <Input {...register('normative')} placeholder="СП 70.13330.2012" />
+          </div>
+
+          {/* Списание материалов */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Списание материалов</Label>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => append({ materialId: '', quantity: 0 })}
               >
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="mr-1 h-3.5 w-3.5" />
                 Добавить
               </Button>
             </div>
-            {fields.map((field, index) => (
-              <div key={field.id} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <Select
-                    value={form.watch(`writeoffs.${index}.materialId`)}
-                    onValueChange={(val) => form.setValue(`writeoffs.${index}.materialId`, val)}
+
+            {fields.map((field, index) => {
+              const selectedMaterial = materials.find(
+                (m) => m.id === field.materialId
+              );
+              const remaining = selectedMaterial
+                ? selectedMaterial.quantityReceived - selectedMaterial.quantityUsed
+                : 0;
+
+              return (
+                <div key={field.id} className="flex items-end gap-2 rounded-md border p-3">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Материал</Label>
+                    <Select
+                      onValueChange={(v) =>
+                        setValue(`writeoffs.${index}.materialId`, v, { shouldValidate: true })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите материал" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {materials.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name} (ост: {m.quantityReceived - m.quantityUsed}{' '}
+                            {MEASUREMENT_UNIT_LABELS[m.unit]})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-28 space-y-1">
+                    <Label className="text-xs">
+                      Кол-во {remaining > 0 && `(до ${remaining})`}
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      {...register(`writeoffs.${index}.quantity`, { valueAsNumber: true })}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => remove(index)}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Материал" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {materials.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name} (ост: {m.remaining} {m.unit})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Кол-во"
-                  className="w-24"
-                  {...form.register(`writeoffs.${index}.quantity`, { valueAsNumber: true })}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => remove(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <DialogFooter>
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Создание...' : 'Создать'}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Создание...' : 'Создать'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

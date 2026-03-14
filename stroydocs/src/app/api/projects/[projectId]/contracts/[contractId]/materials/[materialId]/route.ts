@@ -19,7 +19,6 @@ export async function GET(
     const material = await db.material.findFirst({
       where: { id: params.materialId, contractId: params.contractId },
       include: {
-        workItem: { select: { id: true, cipher: true, name: true } },
         documents: true,
         _count: { select: { writeoffs: true } },
       },

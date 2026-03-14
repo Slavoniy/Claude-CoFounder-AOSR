@@ -4,34 +4,32 @@ import { getSessionOrThrow } from '@/lib/auth-utils';
 import { createMaterialSchema } from '@/lib/validations/material';
 import { successResponse, errorResponse } from '@/utils/api';
 
+/** Проверка доступа к договору через организацию */
+async function verifyContractAccess(contractId: string, organizationId: string) {
+  return db.contract.findFirst({
+    where: { id: contractId, project: { organizationId } },
+  });
+}
+
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: { projectId: string; contractId: string } }
+  req: NextRequest,
+  { params }: { params: { contractId: string } }
 ) {
   try {
     const session = await getSessionOrThrow();
-
-    const project = await db.project.findFirst({
-      where: { id: params.projectId, organizationId: session.user.organizationId },
-    });
-    if (!project) return errorResponse('Проект не найден', 404);
+    const contract = await verifyContractAccess(params.contractId, session.user.organizationId);
+    if (!contract) return errorResponse('Договор не найден', 404);
 
     const materials = await db.material.findMany({
       where: { contractId: params.contractId },
       include: {
-        _count: { select: { documents: true } },
+        documents: { select: { id: true, type: true, fileName: true } },
+        _count: { select: { writeoffs: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Добавляем вычисляемые поля
-    const result = materials.map((m) => ({
-      ...m,
-      remaining: m.quantityReceived - m.quantityUsed,
-      hasCertificate: m._count.documents > 0,
-    }));
-
-    return successResponse(result);
+    return successResponse(materials);
   } catch (error) {
     if (error instanceof NextResponse) return error;
     console.error('Ошибка получения материалов:', error);
@@ -41,15 +39,12 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string; contractId: string } }
+  { params }: { params: { contractId: string } }
 ) {
   try {
     const session = await getSessionOrThrow();
-
-    const project = await db.project.findFirst({
-      where: { id: params.projectId, organizationId: session.user.organizationId },
-    });
-    if (!project) return errorResponse('Проект не найден', 404);
+    const contract = await verifyContractAccess(params.contractId, session.user.organizationId);
+    if (!contract) return errorResponse('Договор не найден', 404);
 
     const body = await req.json();
     const parsed = createMaterialSchema.safeParse(body);

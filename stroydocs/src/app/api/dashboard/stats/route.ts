@@ -18,7 +18,7 @@ export async function GET() {
       db.invitation.count({ where: { organizationId: orgId, status: 'PENDING' } }),
       db.workItem.count({ where: { contract: { project: { organizationId: orgId } } } }),
       db.material.count({ where: { contract: { project: { organizationId: orgId } } } }),
-      db.workRecord.count({ where: { author: { organizationId: orgId } } }),
+      db.workRecord.count({ where: { contract: { project: { organizationId: orgId } } } }),
       db.photo.count({ where: { author: { organizationId: orgId } } }),
     ]);
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionOrThrow } from '@/lib/auth-utils';
 import { createMaterialDocumentSchema } from '@/lib/validations/material';
-import { generateUploadUrl, generateDownloadUrl, buildS3Key } from '@/lib/s3-utils';
+import { generateUploadUrl, getDownloadUrl, buildS3Key } from '@/lib/s3-utils';
 import { successResponse, errorResponse } from '@/utils/api';
 
 export async function GET(
@@ -19,14 +19,14 @@ export async function GET(
 
     const documents = await db.materialDocument.findMany({
       where: { materialId: params.materialId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { uploadedAt: 'desc' },
     });
 
     // Добавляем pre-signed URL для скачивания
     const result = await Promise.all(
       documents.map(async (doc) => ({
         ...doc,
-        downloadUrl: await generateDownloadUrl(doc.s3Key),
+        downloadUrl: await getDownloadUrl(doc.s3Key),
       }))
     );
 
@@ -65,7 +65,6 @@ export async function POST(
     const document = await db.materialDocument.create({
       data: {
         type: parsed.data.type,
-        name: parsed.data.name,
         s3Key,
         fileName: parsed.data.fileName,
         mimeType: parsed.data.mimeType,

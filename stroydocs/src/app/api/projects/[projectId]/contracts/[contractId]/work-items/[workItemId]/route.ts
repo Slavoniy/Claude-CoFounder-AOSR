@@ -20,7 +20,7 @@ export async function GET(
       where: { id: params.workItemId, contractId: params.contractId },
       include: {
         ksiNode: { select: { id: true, code: true, name: true } },
-        _count: { select: { materials: true, workRecords: true } },
+        _count: { select: { workRecords: true } },
       },
     });
     if (!workItem) return errorResponse('Вид работ не найден', 404);

@@ -2,13 +2,11 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,127 +18,109 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/useToast';
 import { createMaterialSchema, type CreateMaterialInput } from '@/lib/validations/material';
+import { MEASUREMENT_UNIT_LABELS } from '@/utils/constants';
+import { useMaterials } from './useMaterials';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: string;
   contractId: string;
-  workItems?: { id: string; cipher: string; name: string }[];
 }
 
-export function CreateMaterialDialog({ open, onOpenChange, projectId, contractId, workItems = [] }: Props) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+export function CreateMaterialDialog({ open, onOpenChange, contractId }: Props) {
+  const { createMutation } = useMaterials(contractId);
 
-  const form = useForm<CreateMaterialInput>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<CreateMaterialInput>({
     resolver: zodResolver(createMaterialSchema),
-    defaultValues: {
-      name: '', supplier: '', invoiceNumber: '', unit: '',
-      quantityReceived: 0, workItemId: null,
-    },
+    defaultValues: { unit: 'PIECE' },
   });
 
-  const mutation = useMutation({
-    mutationFn: async (data: CreateMaterialInput) => {
-      const res = await fetch(`/api/projects/${projectId}/contracts/${contractId}/materials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      return json.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials', contractId] });
-      toast({ title: 'Материал добавлен' });
-      form.reset();
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Ошибка', description: error.message, variant: 'destructive' });
-    },
-  });
+  const onSubmit = (data: CreateMaterialInput) => {
+    createMutation.mutate(data, {
+      onSuccess: () => {
+        reset();
+        onOpenChange(false);
+      },
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Новый материал</DialogTitle>
+          <DialogTitle>Добавить материал</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Наименование материала</Label>
-            <Input placeholder="Бетон В25 (М350)" {...form.register('name')} />
-            {form.formState.errors.name && (
-              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+            <Label>Наименование *</Label>
+            <Input {...register('name')} placeholder="Бетон В25, арматура А500С..." />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name.message}</p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Поставщик</Label>
-              <Input {...form.register('supplier')} />
-              {form.formState.errors.supplier && (
-                <p className="text-xs text-destructive">{form.formState.errors.supplier.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Единица измерения</Label>
-              <Input placeholder="м³" {...form.register('unit')} />
-            </div>
+
+          <div className="space-y-2">
+            <Label>Поставщик</Label>
+            <Input {...register('supplier')} placeholder="ООО «Поставщик»" />
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Номер накладной</Label>
-              <Input placeholder="ТН-2024-0156" {...form.register('invoiceNumber')} />
+              <Input {...register('invoiceNumber')} placeholder="№123" />
             </div>
             <div className="space-y-2">
               <Label>Дата накладной</Label>
-              <Input type="date" {...form.register('invoiceDate')} />
+              <Input type="date" {...register('invoiceDate')} />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Количество получено</Label>
-            <Input
-              type="number"
-              step="0.01"
-              {...form.register('quantityReceived', { valueAsNumber: true })}
-            />
-            {form.formState.errors.quantityReceived && (
-              <p className="text-xs text-destructive">{form.formState.errors.quantityReceived.message}</p>
-            )}
-          </div>
-          {workItems.length > 0 && (
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Привязка к виду работ (необязательно)</Label>
+              <Label>Количество *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                {...register('quantityReceived', { valueAsNumber: true })}
+                placeholder="0"
+              />
+              {errors.quantityReceived && (
+                <p className="text-sm text-destructive">{errors.quantityReceived.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Единица измерения *</Label>
               <Select
-                value={form.watch('workItemId') || ''}
-                onValueChange={(val) => form.setValue('workItemId', val || null)}
+                defaultValue="PIECE"
+                onValueChange={(v) => setValue('unit', v as CreateMaterialInput['unit'])}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Без привязки" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {workItems.map((wi) => (
-                    <SelectItem key={wi.id} value={wi.id}>
-                      {wi.cipher} — {wi.name}
-                    </SelectItem>
+                  {Object.entries(MEASUREMENT_UNIT_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
-          <DialogFooter>
+          </div>
+
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Отмена
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Добавление...' : 'Добавить'}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Создание...' : 'Создать'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

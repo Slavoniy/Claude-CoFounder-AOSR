@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { UserPlus, ArrowLeft, Plus, Hammer, Package, ClipboardList, Camera } from 'lucide-react';
+import { UserPlus, ArrowLeft, Hammer, Package, ClipboardList, Camera } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,12 @@ import { ContractParticipants } from '@/components/modules/contracts/ContractPar
 import { AddParticipantDialog } from '@/components/modules/contracts/AddParticipantDialog';
 import { WorkItemsTable } from '@/components/modules/work-items/WorkItemsTable';
 import { CreateWorkItemDialog } from '@/components/modules/work-items/CreateWorkItemDialog';
-import { useWorkItems } from '@/components/modules/work-items/useWorkItems';
 import { MaterialsTable } from '@/components/modules/materials/MaterialsTable';
 import { CreateMaterialDialog } from '@/components/modules/materials/CreateMaterialDialog';
-import { useMaterials } from '@/components/modules/materials/useMaterials';
 import { WorkRecordsTable } from '@/components/modules/work-records/WorkRecordsTable';
 import { CreateWorkRecordDialog } from '@/components/modules/work-records/CreateWorkRecordDialog';
-import { useWorkRecords } from '@/components/modules/work-records/useWorkRecords';
 import { PhotoGallery } from '@/components/modules/photos/PhotoGallery';
+import { PhotoAttachButton } from '@/components/modules/photos/PhotoAttachButton';
 import { CONTRACT_STATUS_LABELS } from '@/utils/constants';
 import { formatDate } from '@/utils/format';
 
@@ -38,10 +36,6 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
   const [createMaterialOpen, setCreateMaterialOpen] = useState(false);
   const [createWorkRecordOpen, setCreateWorkRecordOpen] = useState(false);
 
-  const { workItems, deleteWorkItem } = useWorkItems(projectId, contractId);
-  const { materials, deleteMaterial } = useMaterials(projectId, contractId);
-  const { workRecords, deleteWorkRecord } = useWorkRecords(projectId, contractId);
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -54,9 +48,6 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
   if (!contract) {
     return <p className="text-muted-foreground">Договор не найден</p>;
   }
-
-  // Список видов работ для селекторов в формах
-  const workItemOptions = workItems.map((wi) => ({ id: wi.id, cipher: wi.cipher, name: wi.name }));
 
   return (
     <div className="space-y-6">
@@ -96,7 +87,7 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
       </div>
 
       <Tabs defaultValue="participants">
-        <TabsList className="flex-wrap">
+        <TabsList>
           <TabsTrigger value="participants">
             Участники
             <Badge variant="secondary" className="ml-2">{contract.participants.length}</Badge>
@@ -106,27 +97,22 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
             <Badge variant="secondary" className="ml-2">{contract.subContracts.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="work-items">
-            <Hammer className="h-3.5 w-3.5 mr-1" />
-            Работы
-            <Badge variant="secondary" className="ml-2">{workItems.length}</Badge>
+            <Hammer className="mr-1 h-3.5 w-3.5" />
+            Виды работ
           </TabsTrigger>
           <TabsTrigger value="materials">
-            <Package className="h-3.5 w-3.5 mr-1" />
+            <Package className="mr-1 h-3.5 w-3.5" />
             Материалы
-            <Badge variant="secondary" className="ml-2">{materials.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="work-records">
-            <ClipboardList className="h-3.5 w-3.5 mr-1" />
-            Записи работ
-            <Badge variant="secondary" className="ml-2">{workRecords.length}</Badge>
+            <ClipboardList className="mr-1 h-3.5 w-3.5" />
+            Записи о работах
           </TabsTrigger>
           <TabsTrigger value="photos">
-            <Camera className="h-3.5 w-3.5 mr-1" />
+            <Camera className="mr-1 h-3.5 w-3.5" />
             Фото
           </TabsTrigger>
         </TabsList>
-
-        {/* Участники */}
         <TabsContent value="participants" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <Button onClick={() => setAddParticipantOpen(true)}>
@@ -146,8 +132,6 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
             contractId={contractId}
           />
         </TabsContent>
-
-        {/* Субдоговоры */}
         <TabsContent value="subcontracts" className="mt-4">
           {contract.subContracts.length === 0 ? (
             <EmptyState title="Нет субдоговоров" />
@@ -175,74 +159,59 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
           )}
         </TabsContent>
 
-        {/* Виды работ */}
+        {/* Фаза 2 — Виды работ */}
         <TabsContent value="work-items" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <Button onClick={() => setCreateWorkItemOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Hammer className="mr-2 h-4 w-4" />
               Добавить вид работ
             </Button>
           </div>
-          {workItems.length === 0 ? (
-            <EmptyState title="Нет видов работ" description="Добавьте виды работ по договору" />
-          ) : (
-            <WorkItemsTable workItems={workItems} onDelete={deleteWorkItem} />
-          )}
+          <WorkItemsTable contractId={contractId} />
           <CreateWorkItemDialog
             open={createWorkItemOpen}
             onOpenChange={setCreateWorkItemOpen}
-            projectId={projectId}
             contractId={contractId}
           />
         </TabsContent>
 
-        {/* Материалы */}
+        {/* Фаза 2 — Материалы */}
         <TabsContent value="materials" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <Button onClick={() => setCreateMaterialOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Package className="mr-2 h-4 w-4" />
               Добавить материал
             </Button>
           </div>
-          {materials.length === 0 ? (
-            <EmptyState title="Нет материалов" description="Добавьте материалы по договору" />
-          ) : (
-            <MaterialsTable materials={materials} onDelete={deleteMaterial} />
-          )}
+          <MaterialsTable contractId={contractId} />
           <CreateMaterialDialog
             open={createMaterialOpen}
             onOpenChange={setCreateMaterialOpen}
-            projectId={projectId}
             contractId={contractId}
-            workItems={workItemOptions}
           />
         </TabsContent>
 
-        {/* Записи о работах */}
+        {/* Фаза 2 — Записи о работах */}
         <TabsContent value="work-records" className="mt-4 space-y-4">
           <div className="flex justify-end">
             <Button onClick={() => setCreateWorkRecordOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Новая запись
+              <ClipboardList className="mr-2 h-4 w-4" />
+              Создать запись
             </Button>
           </div>
-          {workRecords.length === 0 ? (
-            <EmptyState title="Нет записей" description="Создайте запись о выполненных работах" />
-          ) : (
-            <WorkRecordsTable workRecords={workRecords} onDelete={deleteWorkRecord} />
-          )}
+          <WorkRecordsTable contractId={contractId} />
           <CreateWorkRecordDialog
             open={createWorkRecordOpen}
             onOpenChange={setCreateWorkRecordOpen}
-            projectId={projectId}
             contractId={contractId}
-            workItems={workItemOptions}
-            materials={materials}
           />
         </TabsContent>
 
-        {/* Фото-отчёты */}
-        <TabsContent value="photos" className="mt-4">
+        {/* Фаза 2 — Фото-отчёты */}
+        <TabsContent value="photos" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <PhotoAttachButton entityType="WORK_ITEM" entityId={contractId} />
+          </div>
           <PhotoGallery />
         </TabsContent>
       </Tabs>

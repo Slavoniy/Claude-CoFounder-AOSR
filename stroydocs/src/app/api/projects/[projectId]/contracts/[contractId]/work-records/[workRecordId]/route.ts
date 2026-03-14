@@ -19,8 +19,8 @@ export async function GET(
     const workRecord = await db.workRecord.findFirst({
       where: { id: params.workRecordId },
       include: {
-        workItem: { select: { id: true, cipher: true, name: true } },
-        author: { select: { id: true, firstName: true, lastName: true } },
+        workItem: { select: { id: true, projectCipher: true, name: true } },
+
         writeoffs: {
           include: {
             material: { select: { id: true, name: true, unit: true } },
@@ -65,8 +65,8 @@ export async function PATCH(
         ...(date && { date: new Date(date) }),
       },
       include: {
-        workItem: { select: { id: true, cipher: true, name: true } },
-        author: { select: { id: true, firstName: true, lastName: true } },
+        workItem: { select: { id: true, projectCipher: true, name: true } },
+
       },
     });
 

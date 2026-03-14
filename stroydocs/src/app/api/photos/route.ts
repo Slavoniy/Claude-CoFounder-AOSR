@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSessionOrThrow } from '@/lib/auth-utils';
-import { generateUploadUrl, generateDownloadUrl, buildS3Key } from '@/lib/s3-utils';
+import { generateUploadUrl, getDownloadUrl, buildS3Key } from '@/lib/s3-utils';
 import { successResponse, errorResponse } from '@/utils/api';
 import { z } from 'zod/v4';
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     const result = await Promise.all(
       photos.map(async (p) => ({
         ...p,
-        downloadUrl: await generateDownloadUrl(p.s3Key),
+        downloadUrl: await getDownloadUrl(p.s3Key),
       }))
     );
 
