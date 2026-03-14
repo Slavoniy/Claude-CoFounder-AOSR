@@ -1,4 +1,7 @@
-import type { UserRole, ProjectStatus, ContractStatus } from '@prisma/client';
+import type {
+  UserRole, ProjectStatus, ContractStatus,
+  WorkRecordStatus, MaterialDocType,
+} from '@prisma/client';
 
 /** Русские названия ролей пользователей */
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -22,6 +25,22 @@ export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   ACTIVE: 'Действующий',
   COMPLETED: 'Исполнен',
   TERMINATED: 'Расторгнут',
+};
+
+/** Русские названия статусов записей о работах */
+export const WORK_RECORD_STATUS_LABELS: Record<WorkRecordStatus, string> = {
+  DRAFT: 'Черновик',
+  IN_PROGRESS: 'В работе',
+  COMPLETED: 'Выполнено',
+  REJECTED: 'Отклонено',
+};
+
+/** Русские названия типов документов материалов */
+export const MATERIAL_DOC_TYPE_LABELS: Record<MaterialDocType, string> = {
+  PASSPORT: 'Паспорт качества',
+  CERTIFICATE: 'Сертификат соответствия',
+  PROTOCOL: 'Протокол испытаний',
+  OTHER: 'Иной документ',
 };
 
 /** Цвета статусов по спецификации */

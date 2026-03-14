@@ -36,3 +36,24 @@ export enum ParticipantRole {
   SUPERVISION = 'SUPERVISION',
   SUBCONTRACTOR = 'SUBCONTRACTOR',
 }
+
+export enum WorkRecordStatus {
+  DRAFT = 'DRAFT',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED',
+}
+
+export enum MaterialDocType {
+  PASSPORT = 'PASSPORT',
+  CERTIFICATE = 'CERTIFICATE',
+  PROTOCOL = 'PROTOCOL',
+  OTHER = 'OTHER',
+}
+
+export enum PhotoEntityType {
+  WORK_RECORD = 'WORK_RECORD',
+  MATERIAL = 'MATERIAL',
+  REMARK = 'REMARK',
+  WORK_ITEM = 'WORK_ITEM',
+}
