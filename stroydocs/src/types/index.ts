@@ -36,3 +36,30 @@ export enum ParticipantRole {
   SUPERVISION = 'SUPERVISION',
   SUBCONTRACTOR = 'SUBCONTRACTOR',
 }
+
+// === Фаза 2 — Производство работ ===
+
+export enum MaterialDocumentType {
+  PASSPORT = 'PASSPORT',
+  CERTIFICATE = 'CERTIFICATE',
+  PROTOCOL = 'PROTOCOL',
+}
+
+export enum MeasurementUnit {
+  PIECE = 'PIECE',
+  KG = 'KG',
+  TON = 'TON',
+  M = 'M',
+  M2 = 'M2',
+  M3 = 'M3',
+  L = 'L',
+  SET = 'SET',
+}
+
+export enum WorkRecordStatus {
+  DRAFT = 'DRAFT',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+}

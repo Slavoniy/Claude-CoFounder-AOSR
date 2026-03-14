@@ -161,6 +161,9 @@ model Contract {
   updatedAt DateTime @updatedAt
 
   participants ContractParticipant[]
+  workItems    WorkItem[]
+  materials    Material[]
+  workRecords  WorkRecord[]
 
   @@map("contracts")
 }
@@ -182,4 +185,152 @@ model ContractParticipant {
 
   @@unique([contractId, organizationId, role])
   @@map("contract_participants")
+}
+
+// === Модели Фазы 2 — Производство работ ===
+
+/// Перечисление типов сопроводительных документов материалов
+enum MaterialDocumentType {
+  PASSPORT     // Паспорт качества
+  CERTIFICATE  // Сертификат соответствия
+  PROTOCOL     // Протокол испытаний
+}
+
+/// Перечисление единиц измерения
+enum MeasurementUnit {
+  PIECE   // шт
+  KG      // кг
+  TON     // т
+  M       // м
+  M2      // м²
+  M3      // м³
+  L       // л
+  SET     // компл
+}
+
+/// Статус записи о работе
+enum WorkRecordStatus {
+  DRAFT       // Черновик
+  IN_PROGRESS // В работе
+  COMPLETED   // Выполнено
+  ACCEPTED    // Принято
+  REJECTED    // Отклонено
+}
+
+/// Узел классификатора строительной информации (КСИ)
+model KsiNode {
+  id       String    @id @default(uuid())
+  code     String    @unique // Код узла КСИ (например "01.01.001")
+  name     String    // Наименование
+  parentId String?   // Ссылка на родительский узел
+  parent   KsiNode?  @relation("KsiTree", fields: [parentId], references: [id])
+  children KsiNode[] @relation("KsiTree")
+  level    Int       @default(0) // Уровень вложенности (0 = корень)
+
+  createdAt DateTime @default(now())
+
+  workItems WorkItem[]
+
+  @@map("ksi_nodes")
+}
+
+/// Вид работ (привязка к КСИ и договору)
+model WorkItem {
+  id             String  @id @default(uuid())
+  projectCipher  String  // Шифр проекта
+  name           String  // Наименование работы
+  description    String? // Описание
+
+  ksiNodeId  String
+  ksiNode    KsiNode  @relation(fields: [ksiNodeId], references: [id])
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workRecords WorkRecord[]
+
+  @@map("work_items")
+}
+
+/// Материал (привязка к договору, учёт остатков)
+model Material {
+  id              String          @id @default(uuid())
+  name            String          // Наименование материала
+  supplier        String?         // Поставщик
+  invoiceNumber   String?         // Номер накладной
+  invoiceDate     DateTime?       // Дата накладной
+  unit            MeasurementUnit @default(PIECE) // Единица измерения
+  quantityReceived Float          // Получено (по накладной)
+  quantityUsed     Float          @default(0) // Использовано (списано)
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents  MaterialDocument[]
+  writeoffs  MaterialWriteoff[]
+
+  @@map("materials")
+}
+
+/// Сопроводительный документ материала (паспорт, сертификат — хранится в S3)
+model MaterialDocument {
+  id       String               @id @default(uuid())
+  type     MaterialDocumentType // Тип документа
+  fileName String               // Оригинальное имя файла
+  s3Key    String               // Ключ в S3-хранилище
+  mimeType String               // MIME-тип (application/pdf и т.д.)
+  size     Int                  // Размер файла в байтах
+
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  uploadedAt DateTime @default(now())
+
+  @@map("material_documents")
+}
+
+/// Запись о выполненной работе
+model WorkRecord {
+  id          String           @id @default(uuid())
+  date        DateTime         // Дата выполнения
+  location    String           // Место проведения работ
+  description String?          // Описание выполненных работ
+  normative   String?          // Норматив (ГОСТ, СП, СНиП)
+  status      WorkRecordStatus @default(DRAFT)
+
+  workItemId String
+  workItem   WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  writeoffs MaterialWriteoff[]
+
+  @@map("work_records")
+}
+
+/// Списание материала (привязка к записи о работе)
+model MaterialWriteoff {
+  id       String @id @default(uuid())
+  quantity Float  // Количество списанного материала
+
+  workRecordId String
+  workRecord   WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([workRecordId, materialId]) // Один материал — одно списание на запись
+  @@map("material_writeoffs")
 }

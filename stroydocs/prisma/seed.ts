@@ -1,10 +1,40 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { ksiData, type KsiDataNode } from './ksi-data';
 
 const prisma = new PrismaClient();
 
+/** Рекурсивная загрузка дерева КСИ */
+async function seedKsi(
+  nodes: KsiDataNode[],
+  parentId: string | null = null,
+  level: number = 0
+) {
+  for (const node of nodes) {
+    const created = await prisma.ksiNode.upsert({
+      where: { code: node.code },
+      update: { name: node.name, parentId, level },
+      create: {
+        code: node.code,
+        name: node.name,
+        parentId,
+        level,
+      },
+    });
+
+    if ('children' in node && node.children) {
+      await seedKsi(node.children, created.id, level + 1);
+    }
+  }
+}
+
 async function main() {
-  // Тестовая организация
+  // === КСИ ===
+  console.log('Загрузка справочника КСИ...');
+  await seedKsi(ksiData);
+  console.log('КСИ загружен');
+
+  // === Тестовая организация ===
   const org = await prisma.organization.upsert({
     where: { inn: '7707083893' },
     update: {},
@@ -72,7 +102,7 @@ async function main() {
     },
   });
 
-  // Проект 1
+  // === Проекты ===
   const project1 = await prisma.project.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
@@ -88,7 +118,6 @@ async function main() {
     },
   });
 
-  // Проект 2
   await prisma.project.upsert({
     where: { id: '00000000-0000-0000-0000-000000000002' },
     update: {},
@@ -104,7 +133,7 @@ async function main() {
     },
   });
 
-  // Договор (основной)
+  // === Договоры ===
   const contract1 = await prisma.contract.upsert({
     where: { id: '00000000-0000-0000-0000-000000000010' },
     update: {},
@@ -120,7 +149,6 @@ async function main() {
     },
   });
 
-  // Субдоговор
   await prisma.contract.upsert({
     where: { id: '00000000-0000-0000-0000-000000000011' },
     update: {},

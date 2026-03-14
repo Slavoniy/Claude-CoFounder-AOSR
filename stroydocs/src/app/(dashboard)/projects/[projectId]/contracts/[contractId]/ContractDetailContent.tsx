@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { UserPlus, ArrowLeft } from 'lucide-react';
+import { UserPlus, ArrowLeft, Hammer, Package, ClipboardList } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,12 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { useContract } from '@/components/modules/contracts/useContract';
 import { ContractParticipants } from '@/components/modules/contracts/ContractParticipants';
 import { AddParticipantDialog } from '@/components/modules/contracts/AddParticipantDialog';
+import { WorkItemsTable } from '@/components/modules/work-items/WorkItemsTable';
+import { CreateWorkItemDialog } from '@/components/modules/work-items/CreateWorkItemDialog';
+import { MaterialsTable } from '@/components/modules/materials/MaterialsTable';
+import { CreateMaterialDialog } from '@/components/modules/materials/CreateMaterialDialog';
+import { WorkRecordsTable } from '@/components/modules/work-records/WorkRecordsTable';
+import { CreateWorkRecordDialog } from '@/components/modules/work-records/CreateWorkRecordDialog';
 import { CONTRACT_STATUS_LABELS } from '@/utils/constants';
 import { formatDate } from '@/utils/format';
 
@@ -24,6 +30,9 @@ interface Props {
 export function ContractDetailContent({ projectId, contractId }: Props) {
   const { contract, isLoading } = useContract(projectId, contractId);
   const [addParticipantOpen, setAddParticipantOpen] = useState(false);
+  const [createWorkItemOpen, setCreateWorkItemOpen] = useState(false);
+  const [createMaterialOpen, setCreateMaterialOpen] = useState(false);
+  const [createWorkRecordOpen, setCreateWorkRecordOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -85,6 +94,18 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
             Субдоговоры
             <Badge variant="secondary" className="ml-2">{contract.subContracts.length}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="work-items">
+            <Hammer className="mr-1 h-3.5 w-3.5" />
+            Виды работ
+          </TabsTrigger>
+          <TabsTrigger value="materials">
+            <Package className="mr-1 h-3.5 w-3.5" />
+            Материалы
+          </TabsTrigger>
+          <TabsTrigger value="work-records">
+            <ClipboardList className="mr-1 h-3.5 w-3.5" />
+            Записи о работах
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="participants" className="mt-4 space-y-4">
           <div className="flex justify-end">
@@ -130,6 +151,54 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Фаза 2 — Виды работ */}
+        <TabsContent value="work-items" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setCreateWorkItemOpen(true)}>
+              <Hammer className="mr-2 h-4 w-4" />
+              Добавить вид работ
+            </Button>
+          </div>
+          <WorkItemsTable contractId={contractId} />
+          <CreateWorkItemDialog
+            open={createWorkItemOpen}
+            onOpenChange={setCreateWorkItemOpen}
+            contractId={contractId}
+          />
+        </TabsContent>
+
+        {/* Фаза 2 — Материалы */}
+        <TabsContent value="materials" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setCreateMaterialOpen(true)}>
+              <Package className="mr-2 h-4 w-4" />
+              Добавить материал
+            </Button>
+          </div>
+          <MaterialsTable contractId={contractId} />
+          <CreateMaterialDialog
+            open={createMaterialOpen}
+            onOpenChange={setCreateMaterialOpen}
+            contractId={contractId}
+          />
+        </TabsContent>
+
+        {/* Фаза 2 — Записи о работах */}
+        <TabsContent value="work-records" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setCreateWorkRecordOpen(true)}>
+              <ClipboardList className="mr-2 h-4 w-4" />
+              Создать запись
+            </Button>
+          </div>
+          <WorkRecordsTable contractId={contractId} />
+          <CreateWorkRecordDialog
+            open={createWorkRecordOpen}
+            onOpenChange={setCreateWorkRecordOpen}
+            contractId={contractId}
+          />
         </TabsContent>
       </Tabs>
     </div>
