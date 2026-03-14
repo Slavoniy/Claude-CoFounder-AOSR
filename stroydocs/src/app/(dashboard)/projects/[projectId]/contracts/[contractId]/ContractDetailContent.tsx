@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { UserPlus, ArrowLeft, Hammer, Package, ClipboardList } from 'lucide-react';
+import { UserPlus, ArrowLeft, Hammer, Package, ClipboardList, Camera } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import { MaterialsTable } from '@/components/modules/materials/MaterialsTable';
 import { CreateMaterialDialog } from '@/components/modules/materials/CreateMaterialDialog';
 import { WorkRecordsTable } from '@/components/modules/work-records/WorkRecordsTable';
 import { CreateWorkRecordDialog } from '@/components/modules/work-records/CreateWorkRecordDialog';
+import { PhotoGallery } from '@/components/modules/photos/PhotoGallery';
+import { PhotoAttachButton } from '@/components/modules/photos/PhotoAttachButton';
 import { CONTRACT_STATUS_LABELS } from '@/utils/constants';
 import { formatDate } from '@/utils/format';
 
@@ -105,6 +107,10 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
           <TabsTrigger value="work-records">
             <ClipboardList className="mr-1 h-3.5 w-3.5" />
             Записи о работах
+          </TabsTrigger>
+          <TabsTrigger value="photos">
+            <Camera className="mr-1 h-3.5 w-3.5" />
+            Фото
           </TabsTrigger>
         </TabsList>
         <TabsContent value="participants" className="mt-4 space-y-4">
@@ -199,6 +205,14 @@ export function ContractDetailContent({ projectId, contractId }: Props) {
             onOpenChange={setCreateWorkRecordOpen}
             contractId={contractId}
           />
+        </TabsContent>
+
+        {/* Фаза 2 — Фото-отчёты */}
+        <TabsContent value="photos" className="mt-4 space-y-4">
+          <div className="flex justify-end">
+            <PhotoAttachButton entityType="WORK_ITEM" entityId={contractId} />
+          </div>
+          <PhotoGallery />
         </TabsContent>
       </Tabs>
     </div>

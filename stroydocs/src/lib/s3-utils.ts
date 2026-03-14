@@ -44,6 +44,23 @@ export async function deleteFile(key: string): Promise<void> {
   );
 }
 
+/** Получить pre-signed URL для загрузки файла в S3 (TTL: 15 мин) */
+export async function generateUploadUrl(key: string, contentType: string): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+  return getSignedUrl(s3, command, { expiresIn: 900 });
+}
+
+/** Сформировать уникальный S3-ключ для произвольной сущности */
+export function buildS3Key(orgId: string, entityType: string, fileName: string): string {
+  const timestamp = Date.now();
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `orgs/${orgId}/${entityType}/${timestamp}_${safeFileName}`;
+}
+
 /** Сформировать уникальный S3-ключ для документа материала */
 export function buildMaterialDocKey(
   contractId: string,

@@ -11,5 +11,13 @@ export const createMaterialSchema = z.object({
 
 export const updateMaterialSchema = createMaterialSchema.partial();
 
+export const createMaterialDocumentSchema = z.object({
+  type: z.enum(['PASSPORT', 'CERTIFICATE', 'PROTOCOL']),
+  fileName: z.string().min(1, 'Укажите имя файла'),
+  mimeType: z.string().min(1),
+  size: z.number().positive(),
+});
+
 export type CreateMaterialInput = z.infer<typeof createMaterialSchema>;
 export type UpdateMaterialInput = z.infer<typeof updateMaterialSchema>;
+export type CreateMaterialDocumentInput = z.infer<typeof createMaterialDocumentSchema>;

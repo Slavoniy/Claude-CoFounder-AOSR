@@ -63,3 +63,10 @@ export enum WorkRecordStatus {
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED',
 }
+
+export enum PhotoEntityType {
+  WORK_RECORD = 'WORK_RECORD',
+  MATERIAL = 'MATERIAL',
+  REMARK = 'REMARK',
+  WORK_ITEM = 'WORK_ITEM',
+}
